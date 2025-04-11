@@ -1,103 +1,135 @@
-import Image from "next/image";
+'use client'
+import { useState } from 'react'
+import { ToastContainer, toast } from 'react-toastify'
+import 'react-toastify/dist/ReactToastify.css'
+import FileUpload from './components/FileUpload'
+import styles from './components/FileUpload.module.css'
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [marksData, setMarksData] = useState<any[]>([])
+  const [studentData, setStudentData] = useState<any[]>([])
+  const [isProcessing, setIsProcessing] = useState(false)
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  const handleMarksUpload = (data: any[]) => {
+    setMarksData(data)
+    toast.success('تم تحميل بيانات العلامات بنجاح')
+  }
+
+  const handleStudentUpload = (data: any[]) => {
+    setStudentData(data)
+    toast.success('تم تحميل بيانات الطلاب بنجاح')
+  }
+
+  const mergeData = async () => {
+    if (marksData.length === 0 || studentData.length === 0) {
+      toast.error('الرجاء تحميل كلا الملفين قبل الدمج')
+      return
+    }
+
+    setIsProcessing(true)
+
+    try {
+      const response = await fetch('/api/generate-pdf', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ marksData, studentData }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to generate PDF')
+      }
+
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'student_reports.pdf'
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+
+      toast.success('تم إنشاء ملف PDF بنجاح!')
+    } catch (error) {
+      toast.error('حدث خطأ أثناء إنشاء ملف PDF')
+      console.error(error)
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  return (
+    <div className={styles.container}>
+      <div className="text-center mb-12">
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">نظام إشعارات نتائج الطلاب</h1>
+        <p className="text-lg text-gray-600">
+          قم بتحميل ملفات البيانات لإنشاء تقارير PDF للطلاب
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+        <FileUpload
+          title="تحميل بيانات العلامات"
+          description="يجب أن يحتوي الملف على: المادة، الاسم الكامل، المجموع"
+          onUpload={handleMarksUpload}
+        />
+        <FileUpload
+          title="تحميل بيانات الطلاب"
+          description="يجب أن يحتوي الملف على: الاسم المصحح، الصف"
+          onUpload={handleStudentUpload}
+        />
+      </div>
+
+      {(marksData.length > 0 || studentData.length > 0) && (
+        <div className="mt-8">
+          <h2 className="text-xl font-semibold text-gray-800 mb-4 text-center">
+            معاينة البيانات
+          </h2>
+          <div className="overflow-x-auto">
+            <table className={styles.previewTable}>
+              <thead>
+                <tr>
+                  <th>المادة</th>
+                  <th>الاسم الكامل</th>
+                  <th>الدرجة</th>
+                  <th>الصف</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[...marksData.slice(0, 5), ...studentData.slice(0, 5)].map((row, index) => (
+                  <tr key={index}>
+                    <td>{row['المادة'] || row['Course'] || 'N/A'}</td>
+                    <td>{row['الاسم الكامل'] || row['Full Name'] || 'N/A'}</td>
+                    <td>{row['الدرجة'] || row['Total'] || 'N/A'}</td>
+                    <td>{row['الصف'] || row['Classroom'] || 'N/A'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="text-center text-sm text-gray-500 mt-2">
+            عرض أول 5 سجلات فقط للمعاينة
+          </div>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
+      )}
+
+      <div className="flex justify-center mt-8">
+        <button
+          onClick={mergeData}
+          disabled={isProcessing || marksData.length === 0 || studentData.length === 0}
+          className={styles.generateButton}
         >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+          {isProcessing ? 'جاري الإنشاء...' : 'إنشاء ملف PDF'}
+        </button>
+      </div>
+
+      <ToastContainer 
+        position="bottom-left" 
+        rtl={true} 
+        toastClassName="font-sans"
+        progressClassName="bg-blue-500"
+      />
     </div>
-  );
+  )
 }
